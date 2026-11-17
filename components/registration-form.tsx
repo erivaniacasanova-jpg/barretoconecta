@@ -62,6 +62,12 @@ const PLANS = {
   ],
 };
 
+const SHIPPING_OPTIONS = [
+    { id: "Carta", chip: "fisico", label: "Receber pelos Correios", description: "Enviamos o chip para o endereço do cadastro. Prazo de 7 a 15 dias úteis." },
+    { id: "semFrete", chip: "fisico", label: "Retirar na Associação", description: "Na sede ou com um associado próximo, sem esperar pelo correio." },
+    { id: "eSim", chip: "eSim", label: "Ativação por eSIM", description: "Sem chip físico, para aparelhos compatíveis. É a forma mais rápida." },
+];
+
 interface Representante {
   id: string
   nome: string
@@ -312,20 +318,16 @@ export default function RegistrationForm({ representante }: RegistrationFormProp
         bairro: formData.district, cidade: formData.city, estado: formData.state, referral_id: REFERRAL_ID,
       }
 
-      const webhookURLs: { [key: string]: string } = {
-        "192218": "https://webhook.fiqon.app/webhook/01a178e5-d7da-71d9-9208-f0b6047ea5e6/eb1124a3-3f9f-41f0-a834-0da9805f90d0",
-      }
-
-      const webhookURL = webhookURLs[REFERRAL_ID]
-      if (!webhookURL) {
-        setErrorMessage("Representante não encontrado. Favor verificar.")
-        setShowErrorModal(true); setLoading(false); return
-      }
+     const webhookURL = "https://webhook.fiqon.app/webhook/01a1d67e-f039-7244-9717-2eea7ff301d1/388e280e-66c1-4e89-b494-3adde42942a4"
 
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 60000)
+      const timeoutId = setTimeout(() => controller.abort(), 2000000)
 
       try {
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => resolve())
+        })
+
         const response = await fetch(webhookURL, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify(webhookData), signal: controller.signal,
@@ -336,10 +338,15 @@ export default function RegistrationForm({ representante }: RegistrationFormProp
         let webhookMessage = ""
         try {
           const responseData = JSON.parse(responseText)
-          webhookMessage = responseData.message || responseData.msg || responseData.mensagem || ""
+          const responseBody = responseData?.result?.BODY ?? responseData?.BODY
+          const message = responseData.message ?? responseData.msg ?? responseData.mensagem ?? responseBody
+          webhookMessage = typeof message === "string" ? message : message ? JSON.stringify(message) : ""
         } catch { webhookMessage = responseText.trim() }
 
         if (webhookMessage) {
+          // Ignora o "Success" inicial do webhook para não fechar o modal prematuramente
+          if (webhookMessage === "Success") return
+
           const lowerMessage = webhookMessage.toLowerCase()
           const isError = lowerMessage.includes("erro") || lowerMessage.includes("já") || lowerMessage.includes("inválido") || lowerMessage.includes("falha") || lowerMessage.includes("não") || lowerMessage.includes("sendo utilizado") || !response.ok
           if (isError) { setErrorMessage(webhookMessage); setShowErrorModal(true); setLoading(false); return }
